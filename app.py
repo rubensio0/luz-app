@@ -15,119 +15,114 @@ st.set_page_config(
 )
 
 
-# --- 2. BASE DE DATOS ---
+# --- 2. BASE DE DATOS ROBUSTA ---
 def inicializar_db():
     conn = sqlite3.connect('memoria_luz.db', check_same_thread=False)
     c = conn.cursor()
-    # Creamos las tablas si no existen
     c.execute('CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY, nombre TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS historial (id INTEGER PRIMARY KEY, rol TEXT, contenido TEXT, fecha TEXT)')
     c.execute(
         'CREATE TABLE IF NOT EXISTS eventos (id INTEGER PRIMARY KEY, titulo TEXT, fecha TEXT, completado INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS humor (id INTEGER PRIMARY KEY, puntuacion INTEGER, fecha TEXT)')
 
-    # TRUCO PRO: Intentamos añadir la columna fecha por si la base de datos es antigua
+    # Parche por si la tabla historial es antigua
     try:
         c.execute('ALTER TABLE historial ADD COLUMN fecha TEXT')
     except:
-        pass  # Si ya existe, no hace nada y no da error
-
+        pass
     conn.commit()
     return conn
 
 
 conn = inicializar_db()
 
-# --- 3. DISEÑO "VISTOSO" (ULTRA-MODERN UI) ---
+# --- 3. DISEÑO "VISTOSO" Y ARREGLO DE UX (TABLÉTS/MÓVIL) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
 
-    /* Fondo animado y General */
-    [data-testid="stAppViewContainer"] {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        background: linear-gradient(-45deg, #0f172a, #1e293b, #111827, #0f172a);
-        background-size: 400% 400%;
-        animation: gradient 15s ease infinite;
-        color: #f1f5f9;
+    /* Bloquear el "Pull-to-refresh" y mejorar scroll */
+    html, body {
+        overscroll-behavior-y: contain; /* Esto evita que se recargue al tirar hacia arriba */
+        background-color: #0f172a;
     }
 
+    [data-testid="stAppViewContainer"] {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        background: linear-gradient(-45deg, #0f172a, #1e293b, #111827);
+        background-size: 400% 400%;
+        animation: gradient 15s ease infinite;
+    }
+
+    /* Forzar que TODO el texto sea legible (Blanco puro) */
+    h1, h2, h3, p, span, label, .stMarkdown {
+        color: #FFFFFF !important;
+        text-shadow: 0px 2px 4px rgba(0,0,0,0.5);
+    }
+
+    /* Ocultar elementos de Streamlit */
+    header, footer, [data-testid="stDecoration"] { display: none !important; }
+
+    /* Contenedor principal con padding para que no se pegue a los bordes */
+    .block-container { 
+        padding: 1rem !important; 
+        max-width: 550px !important; 
+    }
+
+    /* Cabecera FIJA (Sticky) para que los botones no se escapen */
+    .stHeader {
+        position: fixed;
+        top: 0;
+        z-index: 999;
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(10px);
+        width: 100%;
+        padding: 10px 0;
+    }
+
+    /* Título */
+    .titulo-luz {
+        font-size: 3.5rem !important;
+        font-weight: 800;
+        background: linear-gradient(135deg, #38bdf8, #c084fc);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    /* Burbujas de Chat con alto contraste */
+    .stChatMessage {
+        background: rgba(30, 41, 59, 0.95) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 20px !important;
+        color: #FFFFFF !important;
+    }
+
+    [data-testid="stChatMessageUser"] {
+        background: #0ea5e9 !important; /* Azul sólido para máximo contraste */
+    }
+
+    [data-testid="stChatMessageUser"] p {
+        color: #FFFFFF !important;
+        font-weight: 600;
+    }
+
+    /* Botones estilo App Premium */
+    .stButton>button {
+        border-radius: 12px !important;
+        background: #1e293b !important;
+        color: #FFFFFF !important;
+        border: 1px solid #38bdf8 !important;
+        font-weight: 600 !important;
+        height: 3rem;
+    }
+
+    /* Animación fondo */
     @keyframes gradient {
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
-    }
-
-    /* Ocultar basurilla de Streamlit */
-    header, footer, [data-testid="stDecoration"] { display: none !important; }
-    .block-container { padding-top: 2rem !important; max-width: 500px !important; }
-
-    /* Título Impactante */
-    .titulo-luz {
-        font-size: 4rem !important;
-        font-weight: 800;
-        letter-spacing: -2px;
-        background: linear-gradient(to bottom right, #38bdf8, #818cf8, #c084fc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        margin-bottom: 0px;
-    }
-
-    .eslogan {
-        text-align: center;
-        color: #94a3b8;
-        font-size: 0.9rem;
-        margin-bottom: 2rem;
-    }
-
-    /* Tarjetas Glassmorphism */
-    .stChatMessage {
-        background: rgba(255, 255, 255, 0.05) !important;
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 24px !important;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        margin-bottom: 15px !important;
-    }
-
-    /* Mensaje del Usuario */
-    [data-testid="stChatMessageUser"] {
-        background: linear-gradient(135deg, rgba(56, 189, 248, 0.8), rgba(129, 140, 248, 0.8)) !important;
-    }
-
-    /* Botones Estilo Cápsula */
-    .stButton>button {
-        border-radius: 50px !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        background: rgba(255, 255, 255, 0.05) !important;
-        backdrop-filter: blur(5px);
-        color: white !important;
-        padding: 0.5rem 1rem !important;
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    .stButton>button:hover {
-        transform: scale(1.05);
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
-    }
-
-    /* Caja de entrada flotante */
-    .stChatInputContainer {
-        padding-bottom: 20px !important;
-    }
-    .stChatInput {
-        border-radius: 50px !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        background: rgba(15, 23, 42, 0.9) !important;
-    }
-
-    /* Ajuste para el expansor de retos */
-    .stExpander {
-        border-radius: 20px !important;
-        border: none !important;
-        background: rgba(255, 255, 255, 0.03) !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -174,8 +169,7 @@ def registrar_humor(texto):
 if "respirando" not in st.session_state: st.session_state.respirando = False
 
 if st.session_state.respirando:
-    # --- MODO ZEN MEJORADO ---
-    st.markdown("<h2 style='text-align:center;'>Respira con calma</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align:center;'>Inhala y exhala con Luz</h2>", unsafe_allow_html=True)
     placeholder = st.empty()
     if st.button("Salir"):
         st.session_state.respirando = False
@@ -187,10 +181,10 @@ if st.session_state.respirando:
             for s in range(segs):
                 size = 180 + (s * 25 if m == 1 else (-s * 25 if m == -1 else 100))
                 placeholder.markdown(f"""
-                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:400px;">
-                        <div style="width:{size}px; height:{size}px; background:{color}; border-radius:50%; filter: blur(2px); box-shadow: 0 0 80px {color}; transition: all 0.9s cubic-bezier(0.4, 0, 0.2, 1);"></div>
-                        <h1 style="margin-top:40px; color:white; font-weight:800; text-shadow: 0 0 10px {color};">{accion}</h1>
-                        <p style="color:white; opacity:0.6;">{s + 1}</p>
+                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:450px;">
+                        <div style="width:{size}px; height:{size}px; background:{color}; border-radius:50%; box-shadow: 0 0 80px {color};"></div>
+                        <h1 style="margin-top:40px; color:white; font-size:3rem;">{accion}</h1>
+                        <p style="font-size:1.5rem; color:white;">{s + 1}</p>
                     </div>
                 """, unsafe_allow_html=True)
                 time.sleep(1)
@@ -200,9 +194,8 @@ if st.session_state.respirando:
 else:
     # CABECERA VISUAL
     st.markdown('<h1 class="titulo-luz">Luz</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="eslogan">Tu espacio seguro para charlar y crecer.</p>', unsafe_allow_html=True)
 
-    # ACCIONES RÁPIDAS
+    # MENÚ ACCIONES
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("🧘 Zen"):
@@ -214,44 +207,44 @@ else:
             if not df.empty:
                 st.line_chart(df.set_index('fecha'))
             else:
-                st.write("Escribe algo para ver tu progreso.")
+                st.write("Sin datos.")
     with col3:
         with st.popover("👤"):
             c = conn.cursor()
             c.execute("SELECT nombre FROM usuarios WHERE id=1")
             res_n = c.fetchone()
             nombre_actual = res_n[0] if res_n else "Usuario"
-            nuevo_n = st.text_input("Nombre", nombre_actual)
-            if st.button("OK"):
+            nuevo_n = st.text_input("Tu nombre", nombre_actual)
+            if st.button("Guardar"):
                 c.execute("INSERT OR REPLACE INTO usuarios (id, nombre) VALUES (1, ?)", (nuevo_n,))
                 conn.commit()
                 st.rerun()
 
-    # RETOS INTELIGENTES
+    # RETOS
     c = conn.cursor()
     c.execute("SELECT id, titulo, fecha FROM eventos WHERE completado = 0")
     evs = c.fetchall()
     if evs:
-        with st.expander(f"✨ Tienes {len(evs)} asuntos pendientes"):
+        with st.expander(f"🔔 Tienes {len(evs)} recordatorios"):
             for ide, tit, fec in evs:
                 col_e1, col_e2 = st.columns([3, 1])
                 col_e1.write(f"**{tit}**")
-                if col_e2.button("✓", key=f"check_{ide}"):
+                if col_e2.button("✓", key=f"ch_{ide}"):
                     c.execute("UPDATE eventos SET completado = 1 WHERE id = ?", (ide,))
                     conn.commit()
                     st.rerun()
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("---")
 
     # CHAT
     if "messages" not in st.session_state:
-        c.execute("SELECT rol, contenido FROM historial ORDER BY id DESC LIMIT 10")
+        c.execute("SELECT rol, contenido FROM historial ORDER BY id DESC LIMIT 15")
         st.session_state.messages = [{"role": r, "content": c} for r, c in reversed(c.fetchall())]
 
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if prompt := st.chat_input("Dime lo que sea, tío..."):
+    if prompt := st.chat_input("¿Qué tal va todo?"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
 
@@ -266,10 +259,10 @@ else:
             pendientes = [r[0] for r in c.fetchall()]
 
             sys_prompt = f"""
-            Eres Luz, el mejor colega de {nombre_actual}. 
-            Vives en España. Habla natural (tío, guay, tela, me mola).
-            Tienes acceso a sus eventos: {pendientes}.
-            Dile cosas cortas, como un amigo por WhatsApp. Sé empático pero real.
+            Eres Luz, colega de {nombre_actual}. 
+            Vives en España. Habla natural y de tú (tío, guay, tela).
+            Sabes que le preocupa: {pendientes}.
+            Responde muy corto (máx 2 frases). Sé empático.
             """
 
             response = client.chat.completions.create(
