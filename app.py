@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 
-# --- 2. BASE DE DATOS ROBUSTA ---
+# --- 2. BASE DE DATOS ---
 def inicializar_db():
     conn = sqlite3.connect('memoria_luz.db', check_same_thread=False)
     c = conn.cursor()
@@ -24,8 +24,6 @@ def inicializar_db():
     c.execute(
         'CREATE TABLE IF NOT EXISTS eventos (id INTEGER PRIMARY KEY, titulo TEXT, fecha TEXT, completado INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS humor (id INTEGER PRIMARY KEY, puntuacion INTEGER, fecha TEXT)')
-
-    # Parche por si la tabla historial es antigua
     try:
         c.execute('ALTER TABLE historial ADD COLUMN fecha TEXT')
     except:
@@ -36,166 +34,123 @@ def inicializar_db():
 
 conn = inicializar_db()
 
-# --- 3. DISEÑO "VISTOSO" Y ARREGLO DE UX (TABLÉTS/MÓVIL) ---
+# --- 3. DISEÑO "ANTI-RECARGA" Y MÁXIMO CONTRASTE ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
 
-    /* Bloquear el "Pull-to-refresh" y mejorar scroll */
-    html, body {
-        overscroll-behavior-y: contain; /* Esto evita que se recargue al tirar hacia arriba */
-        background-color: #0f172a;
+    /* BLOQUEO DE RECARGA (PULL-TO-REFRESH) */
+    html, body, [data-testid="stAppViewContainer"] {
+        overscroll-behavior-y: none !important;
+        overscroll-behavior: none !important;
+        position: fixed;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
     }
 
+    /* Permitir scroll solo en el contenedor de la app */
+    .main .block-container {
+        overflow-y: auto;
+        height: 100vh;
+        overscroll-behavior-y: contain;
+    }
+
+    /* FONDO Y TEXTO */
     [data-testid="stAppViewContainer"] {
         font-family: 'Plus Jakarta Sans', sans-serif;
-        background: linear-gradient(-45deg, #0f172a, #1e293b, #111827);
-        background-size: 400% 400%;
-        animation: gradient 15s ease infinite;
-    }
-
-    /* Forzar que TODO el texto sea legible (Blanco puro) */
-    h1, h2, h3, p, span, label, .stMarkdown {
+        background: #0f172a !important; /* Fondo sólido muy oscuro para evitar líos de contraste */
         color: #FFFFFF !important;
-        text-shadow: 0px 2px 4px rgba(0,0,0,0.5);
     }
 
-    /* Ocultar elementos de Streamlit */
-    header, footer, [data-testid="stDecoration"] { display: none !important; }
-
-    /* Contenedor principal con padding para que no se pegue a los bordes */
-    .block-container { 
-        padding: 1rem !important; 
-        max-width: 550px !important; 
+    /* Forzar visibilidad de letras */
+    p, span, h1, h2, h3, label, .stMarkdown {
+        color: #FFFFFF !important;
+        font-weight: 500;
     }
 
-    /* Cabecera FIJA (Sticky) para que los botones no se escapen */
-    .stHeader {
-        position: fixed;
-        top: 0;
-        z-index: 999;
-        background: rgba(15, 23, 42, 0.8);
-        backdrop-filter: blur(10px);
-        width: 100%;
-        padding: 10px 0;
-    }
-
-    /* Título */
+    /* Título con brillo */
     .titulo-luz {
         font-size: 3.5rem !important;
         font-weight: 800;
-        background: linear-gradient(135deg, #38bdf8, #c084fc);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #38bdf8 !important;
         text-align: center;
-        margin-top: 1rem;
+        margin-bottom: 1rem;
+        text-shadow: 0px 0px 15px rgba(56, 189, 248, 0.5);
     }
 
-    /* Burbujas de Chat con alto contraste */
+    /* Burbujas de Chat */
     .stChatMessage {
-        background: rgba(30, 41, 59, 0.95) !important;
+        background: rgba(255, 255, 255, 0.1) !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        border-radius: 20px !important;
-        color: #FFFFFF !important;
+        border-radius: 15px !important;
     }
 
     [data-testid="stChatMessageUser"] {
-        background: #0ea5e9 !important; /* Azul sólido para máximo contraste */
+        background: #0284c7 !important;
     }
 
-    [data-testid="stChatMessageUser"] p {
-        color: #FFFFFF !important;
-        font-weight: 600;
-    }
-
-    /* Botones estilo App Premium */
+    /* Botones Pro */
     .stButton>button {
-        border-radius: 12px !important;
         background: #1e293b !important;
-        color: #FFFFFF !important;
-        border: 1px solid #38bdf8 !important;
-        font-weight: 600 !important;
-        height: 3rem;
+        color: white !important;
+        border: 2px solid #38bdf8 !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
     }
 
-    /* Animación fondo */
-    @keyframes gradient {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
+    header, footer, [data-testid="stDecoration"] { display: none !important; }
     </style>
+
+    <script>
+    // SCRIPT PARA BLOQUEAR EL GESTO DE RECARGA EN TABLETS
+    var lastY = 0;
+    document.addEventListener('touchstart', function(e) {
+        lastY = e.touches[0].clientY;
+    }, {passive: false});
+
+    document.addEventListener('touchmove', function(e) {
+        var top = window.pageYOffset || document.documentElement.scrollTop;
+        var y = e.touches[0].clientY;
+        if (top === 0 && y > lastY) {
+            e.preventDefault(); // Bloquea el tirón hacia abajo
+        }
+        lastY = y;
+    }, {passive: false});
+    </script>
     """, unsafe_allow_html=True)
 
-# --- 4. LÓGICA DE INTELIGENCIA ---
+# --- 4. LÓGICA ---
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("⚠️ Configura la GROQ_API_KEY en Secrets.")
+    st.error("⚠️ Falta API KEY en Secrets.")
     st.stop()
-
-
-def analizar_y_guardar_evento(texto):
-    prompt = f"Analiza: '{texto}'. Si hay un evento futuro responde SOLO un JSON: {{\"titulo\": \"...\", \"fecha\": \"YYYY-MM-DD\"}}. Si no, responde 'None'."
-    res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "user", "content": prompt}])
-    content = res.choices[0].message.content
-    if "{" in content:
-        try:
-            data = json.loads(content[content.find("{"):content.find("}") + 1])
-            c = conn.cursor()
-            c.execute("INSERT INTO eventos (titulo, fecha, completado) VALUES (?, ?, 0)",
-                      (data['titulo'], data['fecha']))
-            conn.commit()
-            return data['titulo']
-        except:
-            return None
-    return None
-
-
-def registrar_humor(texto):
-    prompt = f"Del 1 al 10, ¿cuán positivo es este mensaje? Responde solo el número: '{texto}'"
-    res = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "user", "content": prompt}])
-    try:
-        score = int(res.choices[0].message.content.strip())
-        c = conn.cursor()
-        c.execute("INSERT INTO humor (puntuacion, fecha) VALUES (?, ?)", (score, datetime.now().strftime("%Y-%m-%d")))
-        conn.commit()
-    except:
-        pass
-
 
 # --- 5. INTERFAZ ---
 
 if "respirando" not in st.session_state: st.session_state.respirando = False
 
 if st.session_state.respirando:
-    st.markdown("<h2 style='text-align:center;'>Inhala y exhala con Luz</h2>", unsafe_allow_html=True)
-    placeholder = st.empty()
-    if st.button("Salir"):
+    st.markdown("<h1 style='text-align:center;'>Respira...</h1>", unsafe_allow_html=True)
+    ph = st.empty()
+    if st.button("Terminar"):
         st.session_state.respirando = False
         st.rerun()
 
     for _ in range(2):
-        for accion, segs, color, m in [("Inhala", 4, "#38bdf8", 1), ("Mantén", 7, "#818cf8", 0),
-                                       ("Exhala", 8, "#4ade80", -1)]:
+        for accion, segs, color in [("Inhala", 4, "#38bdf8"), ("Mantén", 7, "#818cf8"), ("Exhala", 8, "#4ade80")]:
             for s in range(segs):
-                size = 180 + (s * 25 if m == 1 else (-s * 25 if m == -1 else 100))
-                placeholder.markdown(f"""
-                    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:450px;">
-                        <div style="width:{size}px; height:{size}px; background:{color}; border-radius:50%; box-shadow: 0 0 80px {color};"></div>
-                        <h1 style="margin-top:40px; color:white; font-size:3rem;">{accion}</h1>
-                        <p style="font-size:1.5rem; color:white;">{s + 1}</p>
-                    </div>
-                """, unsafe_allow_html=True)
+                ph.markdown(
+                    f"<div style='display:flex; justify-content:center; align-items:center; height:300px;'><div style='width:200px; height:200px; background:{color}; border-radius:50%; box-shadow: 0 0 50px {color}; display:flex; align-items:center; justify-content:center;'><h2>{s + 1}</h2></div></div><h2 style='text-align:center; color:{color};'>{accion}</h2>",
+                    unsafe_allow_html=True)
                 time.sleep(1)
     st.session_state.respirando = False
     st.rerun()
 
 else:
-    # CABECERA VISUAL
     st.markdown('<h1 class="titulo-luz">Luz</h1>', unsafe_allow_html=True)
 
-    # MENÚ ACCIONES
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("🧘 Zen"):
@@ -204,34 +159,29 @@ else:
     with col2:
         with st.popover("📈"):
             df = pd.read_sql_query("SELECT puntuacion, fecha FROM humor ORDER BY id DESC LIMIT 10", conn)
-            if not df.empty:
-                st.line_chart(df.set_index('fecha'))
-            else:
-                st.write("Sin datos.")
+            if not df.empty: st.line_chart(df.set_index('fecha'))
     with col3:
         with st.popover("👤"):
-            c = conn.cursor()
+            c = conn.cursor();
             c.execute("SELECT nombre FROM usuarios WHERE id=1")
-            res_n = c.fetchone()
-            nombre_actual = res_n[0] if res_n else "Usuario"
-            nuevo_n = st.text_input("Tu nombre", nombre_actual)
-            if st.button("Guardar"):
+            res_n = c.fetchone();
+            nombre_actual = res_n[0] if res_n else "Colega"
+            nuevo_n = st.text_input("Nombre", nombre_actual)
+            if st.button("Ok"):
                 c.execute("INSERT OR REPLACE INTO usuarios (id, nombre) VALUES (1, ?)", (nuevo_n,))
-                conn.commit()
+                conn.commit();
                 st.rerun()
 
-    # RETOS
-    c = conn.cursor()
-    c.execute("SELECT id, titulo, fecha FROM eventos WHERE completado = 0")
+    # EVENTOS
+    c = conn.cursor();
+    c.execute("SELECT id, titulo FROM eventos WHERE completado = 0")
     evs = c.fetchall()
     if evs:
-        with st.expander(f"🔔 Tienes {len(evs)} recordatorios"):
-            for ide, tit, fec in evs:
-                col_e1, col_e2 = st.columns([3, 1])
-                col_e1.write(f"**{tit}**")
-                if col_e2.button("✓", key=f"ch_{ide}"):
+        with st.expander("🔔 Recordatorios"):
+            for ide, tit in evs:
+                if st.button(f"Hecho: {tit}", key=f"e_{ide}"):
                     c.execute("UPDATE eventos SET completado = 1 WHERE id = ?", (ide,))
-                    conn.commit()
+                    conn.commit();
                     st.rerun()
 
     st.markdown("---")
@@ -239,37 +189,22 @@ else:
     # CHAT
     if "messages" not in st.session_state:
         c.execute("SELECT rol, contenido FROM historial ORDER BY id DESC LIMIT 15")
-        st.session_state.messages = [{"role": r, "content": c} for r, c in reversed(c.fetchall())]
+        st.session_state.messages = [{"role": r, "content": con} for r, con in reversed(c.fetchall())]
 
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-    if prompt := st.chat_input("¿Qué tal va todo?"):
+    if prompt := st.chat_input("Escribe aquí..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"): st.markdown(prompt)
-
         c.execute("INSERT INTO historial (rol, contenido, fecha) VALUES (?, ?, ?)",
                   ("user", prompt, datetime.now().strftime("%Y-%m-%d")))
 
-        analizar_y_guardar_evento(prompt)
-        registrar_humor(prompt)
-
+        # Inteligencia proactiva
         with st.chat_message("assistant"):
-            c.execute("SELECT titulo FROM eventos WHERE completado=0")
-            pendientes = [r[0] for r in c.fetchall()]
-
-            sys_prompt = f"""
-            Eres Luz, colega de {nombre_actual}. 
-            Vives en España. Habla natural y de tú (tío, guay, tela).
-            Sabes que le preocupa: {pendientes}.
-            Responde muy corto (máx 2 frases). Sé empático.
-            """
-
-            response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "system", "content": sys_prompt}] + st.session_state.messages,
-                temperature=0.8
-            )
+            sys_prompt = f"Eres Luz, colega de {nombre_actual}. Vives en España. Habla natural. Responde muy corto (1-2 frases)."
+            response = client.chat.completions.create(model="llama-3.1-8b-instant", messages=[{"role": "system",
+                                                                                               "content": sys_prompt}] + st.session_state.messages)
             ans = response.choices[0].message.content
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
