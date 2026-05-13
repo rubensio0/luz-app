@@ -100,7 +100,7 @@ st.markdown("""
 # Cliente de IA (Usando Secrets para profesionalidad)
 # Si no usas Secrets, pon tu clave aquí: client = Groq(api_key="TU_CLAVE")
 try:
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    client = Groq(api_key=st.secrets["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"])
 except:
     st.error("⚠️ Configura la GROQ_API_KEY en los Secrets de Streamlit.")
     st.stop()
