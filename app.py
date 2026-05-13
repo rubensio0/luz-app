@@ -19,11 +19,19 @@ st.set_page_config(
 def inicializar_db():
     conn = sqlite3.connect('memoria_luz.db', check_same_thread=False)
     c = conn.cursor()
+    # Creamos las tablas si no existen
     c.execute('CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY, nombre TEXT)')
     c.execute('CREATE TABLE IF NOT EXISTS historial (id INTEGER PRIMARY KEY, rol TEXT, contenido TEXT, fecha TEXT)')
     c.execute(
         'CREATE TABLE IF NOT EXISTS eventos (id INTEGER PRIMARY KEY, titulo TEXT, fecha TEXT, completado INTEGER)')
     c.execute('CREATE TABLE IF NOT EXISTS humor (id INTEGER PRIMARY KEY, puntuacion INTEGER, fecha TEXT)')
+
+    # TRUCO PRO: Intentamos añadir la columna fecha por si la base de datos es antigua
+    try:
+        c.execute('ALTER TABLE historial ADD COLUMN fecha TEXT')
+    except:
+        pass  # Si ya existe, no hace nada y no da error
+
     conn.commit()
     return conn
 
